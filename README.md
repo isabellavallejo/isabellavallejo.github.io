@@ -9,8 +9,8 @@ My work spans the full analytic and research lifecycle: wrangling and preprocess
 #### Skills: R, Python, Statistical Modeling, Machine Learning, Applied NLP & LLMs, Research Design
 
 ## Education
-- M.S., Data Analytics and Computational Social Science | University of Massachusetts Amherst (May 2026)
-- B.S., Psychology, with Minor in Data Science | Florida Atlantic University, Harriet L. Wilkes Honors College (May 2023)
+- **M.S., Data Analytics and Computational Social Science** | University of Massachusetts Amherst (May 2026)
+- **B.S., Psychology, with Minor in Data Science** | Florida Atlantic University, Harriet L. Wilkes Honors College (May 2023)
 
 ## Selected Projects
 
