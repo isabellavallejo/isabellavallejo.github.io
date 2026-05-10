@@ -16,13 +16,13 @@ My work spans the full analytic and research lifecycle: wrangling and preprocess
 
 ### Adverse Childhood Experiences (ACEs) and Alcohol Misuse
 #### Spring 2026
-[Research Paper]()
+[Research Paper](https://github.com/isabellavallejo/aces-alcohol-misuse)
 
 ** DACSS 790Q Final Project; fill in info/files once project is complete
 
 ### Predicting Patient Outcomes from Drug-Related Hospital Admission Data
 #### Spring 2026
-[Report]()
+[Report](https://github.com/isabellavallejo/drug-related-patient-outcomes)
 
 ** DACSS 756 Final Project; fill in info/files once project is complete
 
