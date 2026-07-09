@@ -1,0 +1,61 @@
+---
+title: "dataAnalysis_raw"
+author: "Isabella Vallejo"
+date: "2023-04-06"
+output: html_document
+---
+
+
+```{r REFERENCE}
+
+# users from the control group (i.e., made no posts to r/SuicideWatch) have user IDs that are negative numbers
+
+# the "10 selected LIWC-22 variables" as described in the preregistration are:
+# (a) all-or-none cognition ("allnone")
+# (b) auxiliary verbs ("auxverb")
+# (c) common verbs ("verb")
+# (d) death ("death")
+# (e) fatigue ("fatigue")
+# (f) first-person plural pronouns ("we")
+# (g) first-person singular pronouns ("i")
+# (h) negative emotion ("emo_neg")
+# (i) word count ("WC")
+# (j) future reference ("focusfuture"), reverse-coded
+
+```
+
+
+```{r SETUP}
+
+# load libraries:
+library(tidyverse)
+
+```
+
+
+```{r LOAD RAW DATA}
+
+# load cleaned raw data:
+allPosts_raw <- read_csv("allPosts_raw.csv")
+
+# load aggregated and standardized LIWC-22 output data:
+allPosts_LIWC_aggrByUser_Z <- read_csv("allPosts_LIWC_aggrByUser_Z.csv")
+
+```
+
+
+```{r DESCRIPTIVES AND DATA EXPLORATION}
+
+# count number of unique users in the cleaned raw data:
+userCount <- unique(allPosts_raw$user_id)
+length(userCount)
+
+# count number of unique posts in the cleaned raw data:
+postCount <- unique(allPosts_raw$post_id)
+length(postCount)
+
+# view only the posts that were made to r/SuicideWatch:
+onlySuicideWatch <- allPosts_raw %>% 
+  filter(subreddit == "SuicideWatch")
+
+```

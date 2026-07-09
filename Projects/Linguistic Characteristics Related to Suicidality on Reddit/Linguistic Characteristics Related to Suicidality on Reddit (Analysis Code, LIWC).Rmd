@@ -1,0 +1,268 @@
+---
+title: "Thesis Analysis Code: LIWC"
+author: "Isabella Vallejo"
+date: "2023-04-06"
+output: html_document
+---
+
+
+```{r REFERENCE}
+
+# users from the control group (i.e., made no posts to r/SuicideWatch) have user IDs that are negative numbers
+
+# the "10 selected LIWC-22 variables" as described in the preregistration are:
+# (a) all-or-none cognition ("allnone")
+# (b) auxiliary verbs ("auxverb")
+# (c) common verbs ("verb")
+# (d) death ("death")
+# (e) fatigue ("fatigue")
+# (f) first-person plural pronouns ("we")
+# (g) first-person singular pronouns ("i")
+# (h) negative emotion ("emo_neg")
+# (i) word count ("WC")
+# (j) future reference ("focusfuture"), reverse-coded
+
+```
+
+
+```{r SETUP}
+
+# load libraries:
+library(tidyverse)
+library(tidymodels)
+library(bestglm)
+
+```
+
+
+```{r LOAD LIWC DATA}
+
+# load LIWC-22 output data:
+allPosts_LIWC <- read_csv("allPosts_LIWC.csv")
+
+# load aggregated LIWC-22 output data:
+allPosts_LIWC_aggrByUser <- read_csv("allPosts_LIWC_aggrByUser.csv")
+
+# load aggregated and standardized LIWC-22 output data:
+allPosts_LIWC_aggrByUser_Z <- read_csv("allPosts_LIWC_aggrByUser_Z.csv")
+
+# load train and test samples of the standardized and aggregated-by-user LIWC data:
+allPosts_LIWC_aggrByUser_Z_train <- read_csv("allPosts_LIWC_aggrByUser_Z_train.csv")
+allPosts_LIWC_aggrByUser_Z_test <- read_csv("allPosts_LIWC_aggrByUser_Z_test.csv")
+
+# load posts-per-user data:
+postsPerAggrUser <- read_csv("postsPerAggrUser.csv")
+
+```
+
+
+```{r DESCRIPTIVES}
+
+# basic statistics
+
+# compute mean and standard deviation of number of posts per user:
+mean(postsPerAggrUser$posts_per_user)
+sd(postsPerAggrUser$posts_per_user)
+
+# compute mean and standard deviation of word count ("WC") at the post level:
+mean(allPosts_LIWC$WC)
+sd(allPosts_LIWC$WC)
+
+# compute mean and standard deviation of word count ("WC") at the user level:
+mean(allPosts_LIWC_aggrByUser$WC)
+sd(allPosts_LIWC_aggrByUser$WC)
+
+# calculate how many posts were made to each subreddit included in the data:
+subredditCounts <- allPosts_LIWC %>% 
+  count(subreddit)
+
+# investigate the class imbalance of the data at the user level
+
+# create a variable "fromSW" (aka, "from suicidal group") that indicates whether a user is in the control group (i.e., has a negative user ID) or the suicidal group (i.e., has a positive user ID), then count the number of users in each group:
+classImbalance_userLevel <- allPosts_LIWC_aggrByUser_Z %>% 
+  mutate(fromSW = case_when(user_id < 0 ~ "control_group_users", TRUE ~ "suicidal_group_users")) %>% 
+  select(user_id, fromSW) %>% 
+  count(fromSW)
+
+# investigate the class imbalance of the data at the user level
+
+# create a variable "fromSW" (aka, "from suicidal group") that indicates whether a user is in the control group (i.e., has a negative user ID) or the suicidal group (i.e., has a positive user ID), then count the number of users in each group:
+classImbalance_postLevel <- allPosts_LIWC %>% 
+  mutate(fromSW = case_when(user_id < 0 ~ "control_group_posts", TRUE ~ "suicidal_group_posts")) %>% 
+  select(user_id, fromSW) %>% 
+  count(fromSW)
+
+```
+
+
+```{r CORRELATIONS}
+
+# prepare aggregated-by-user and standardized data for calculating zero-order correlations between fromSW and all LIWC variables' scores:
+allPosts_LIWC_aggrByUser_Z_forCorrs <- allPosts_LIWC_aggrByUser_Z %>% 
+  mutate(fromSW = case_when(user_id < 0 ~ 0, TRUE ~ 1)) %>% 
+  mutate(fromSW = as.numeric(fromSW)) %>% 
+  select(user_id:fromSW) %>% 
+  relocate(fromSW, .after = user_id)
+forCorrs_fromSW <- allPosts_LIWC_aggrByUser_Z_forCorrs %>% 
+  mutate(fromSW = as.numeric(fromSW)) %>% 
+  select(fromSW)
+forCorrs_LIWCvariables <- allPosts_LIWC_aggrByUser_Z_forCorrs %>% 
+  select(-fromSW, -user_id)
+
+# calculate zero-order correlations between fromSW and all LIWC variables' scores:
+correlations <- cor(forCorrs_LIWCvariables, forCorrs_fromSW) %>% 
+  round(3) %>% 
+  as_tibble(rownames = "LIWC variable") %>% 
+  arrange(desc(abs(fromSW)))
+
+```
+
+
+```{r LOGISTIC REGRESSION MODEL 1; USES ALL LIWC VARIABLES TO PREDICT fromSW}
+
+# build logistic regression Model 1 (modified code from https://medium.com/the-researchers-guide/modelling-binary-logistic-regression-using-tidymodels-library-in-r-part-1-c1bdce0ac055)
+
+# convert fromSW to factor data type in the train and test data:
+allPosts_LIWC_aggrByUser_Z_train$fromSW <- as.factor(allPosts_LIWC_aggrByUser_Z_train$fromSW)
+allPosts_LIWC_aggrByUser_Z_test$fromSW <- as.factor(allPosts_LIWC_aggrByUser_Z_test$fromSW)
+
+# build logistic regression Model 1:
+logReg1 <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification") %>%
+  fit(fromSW ~ . - user_id, data = allPosts_LIWC_aggrByUser_Z_train)
+
+# interpret logistic regression Model 1 (modified code from https://medium.com/the-researchers-guide/modelling-binary-logistic-regression-using-tidymodels-library-in-r-part-1-c1bdce0ac055)
+
+# view the LIWC variables that are significant at p < 0.05 in logistic regression Model 1 (i.e., which LIWC variables significantly differentiate between the suicidal and control groups):
+logReg1_p0.05 <- tidy(logReg1) %>%
+  filter(p.value < 0.05) %>%
+  arrange(desc(abs(estimate)))
+
+# view the LIWC variables that are significant at p < 0.01 in logistic regression Model 1 (i.e., which LIWC variables significantly differentiate between the suicidal and control groups):
+logReg1_p0.01 <- tidy(logReg1) %>%
+  filter(p.value < 0.01) %>% 
+  arrange(desc(abs(estimate)))
+
+# apply logistic regression Model 1 to the test data and view (1) each user's predicted probability of being in suicidal or control group, and (2) each user's predicted group:
+logReg1_predictProb <- predict(logReg1, new_data = allPosts_LIWC_aggrByUser_Z_test, type = "prob")
+logReg1_predictClass <- predict(logReg1, new_data = allPosts_LIWC_aggrByUser_Z_test, type = "class")
+
+# view accuracy data for logistic regression Model 1:
+logReg1_results <- allPosts_LIWC_aggrByUser_Z_test %>%
+  select(user_id, fromSW) %>%
+  bind_cols(logReg1_predictProb, logReg1_predictClass) %>%
+  rename(probability0 = .pred_0, probability1 = .pred_1, predictedClass = .pred_class)
+
+# confusion matrix for logistic regression Model 1 (displays numbers of correct and incorrect classifications into the two groups by the model):
+conf_mat(logReg1_results, truth = fromSW, estimate = predictedClass)
+
+# calculate model performance statistics for logistic regression Model 1
+
+# calculate accuracy (proportion of the data points that are classified correctly) for logistic regression Model 1:
+logReg1_accuracy <- accuracy(logReg1_results, truth = fromSW, estimate = predictedClass)
+
+# calculate specificity (ratio of cases correctly classified as control-group to actual control-group cases) for logistic regression Model 1:
+logReg1_specificity <- specificity(logReg1_results, truth = fromSW, estimate = predictedClass)
+
+# calculate sensitivity (ratio of cases correctly classified as suicidal-group to actual suicidal-group cases) for logistic regression Model 1:
+logReg1_sensitivity <- sensitivity(logReg1_results, truth = fromSW, estimate = predictedClass)
+
+# calculate Kappa value (indicator of how much better the current model classifies compared to a model that randomly classifies based on class occurrence frequency; source is ) for logistic regression Model 1:
+logReg1_kappa <- kap(logReg1_results, truth = fromSW, estimate = predictedClass)
+
+# bind all model performance statistics for logistic regression Model 1 into one table, then clean up environment:
+logReg1_performance <- bind_rows(logReg1_accuracy, logReg1_sensitivity, logReg1_specificity, logReg1_kappa)
+rm(logReg1_accuracy, logReg1_sensitivity, logReg1_specificity, logReg1_kappa)
+
+# calculate and plot the area under the receiver operator curve (ROC; plots the false-positive rate on the x-axis and the true-positive rate on the y-axis; the closer the curve approaches to the top-left corner of the graph, the better the predictive ability of the model) for logistic regression Model 1:
+roc_auc(logReg1_results, truth = fromSW, probability0)
+logReg1_results %>% roc_curve(truth = fromSW, probability0) %>% 
+  autoplot()
+
+```
+
+
+```{r LOGISTIC REGRESSION MODEL 2; USES THE SELECTED 10 LIWC VARIABLES TO PREDICT fromSW}
+
+# build logistic regression Model 2 (modified code from https://medium.com/the-researchers-guide/modelling-binary-logistic-regression-using-tidymodels-library-in-r-part-1-c1bdce0ac055)
+
+# filter out the 10 selected LIWC variables, then convert fromSW to factor data type in the train and test data:
+allPosts_LIWC_aggrByUser_Z_train_10vars <- allPosts_LIWC_aggrByUser_Z_train %>% 
+  select(user_id, fromSW, allnone, auxverb, death, emo_neg, fatigue, focusfuture, i, verb, we, WC) %>% 
+   mutate(fromSW = as.factor(fromSW))
+allPosts_LIWC_aggrByUser_Z_test_10vars <- allPosts_LIWC_aggrByUser_Z_test %>% 
+  select(user_id, fromSW, allnone, auxverb, death, emo_neg, fatigue, focusfuture, i, verb, we, WC) %>% 
+   mutate(fromSW = as.factor(fromSW))
+
+# build logistic regression Model 2:
+logReg2 <- logistic_reg() %>% 
+  set_engine("glm") %>% 
+  set_mode("classification") %>%
+  fit(fromSW ~ . - user_id, data = allPosts_LIWC_aggrByUser_Z_train_10vars)
+
+# interpret logistic regression Model 2 (modified code from Dr. Lanning)
+
+# view the LIWC variables that are significant at p < 0.05 in logistic regression Model 2 (i.e., which LIWC variables significantly differentiate between the suicidal and control groups):
+logReg2_p0.05 <- tidy(logReg2) %>%
+  filter(p.value < 0.05) %>% 
+  arrange(desc(abs(estimate)))
+
+# view the LIWC variables that are significant at p < 0.01 in logistic regression Model 2 (i.e., which LIWC variables significantly differentiate between the suicidal and control groups):
+logReg2_p0.01 <- tidy(logReg2) %>%
+  filter(p.value < 0.01) %>% 
+  arrange(desc(abs(estimate)))
+
+# apply logistic regression Model 2 to the test data and view (1) each user's predicted probability of being in suicidal or control group, and (2) each user's predicted group:
+logReg2_predictProb <- predict(logReg2, new_data = allPosts_LIWC_aggrByUser_Z_test_10vars, type = "prob")
+logReg2_predictClass <- predict(logReg2, new_data = allPosts_LIWC_aggrByUser_Z_test_10vars, type = "class")
+
+# view accuracy data for logistic regression Model 2:
+logReg2_results <- allPosts_LIWC_aggrByUser_Z_test_10vars %>%
+  select(user_id, fromSW) %>%
+  bind_cols(logReg2_predictProb, logReg2_predictClass) %>%
+  rename(probability0 = .pred_0, probability1 = .pred_1, predictedClass = .pred_class)
+
+# confusion matrix for logistic regression Model 2 (displays numbers of correct and incorrect classifications into the two groups by the model):
+conf_mat(logReg2_results, truth = fromSW, estimate = predictedClass)
+
+# calculate model performance statistics for logistic regression Model 2
+
+# calculate accuracy (proportion of the data points that are classified correctly) for logistic regression Model 2:
+logReg2_accuracy <- accuracy(logReg2_results, truth = fromSW, estimate = predictedClass)
+
+# calculate specificity (ratio of cases correctly classified as control-group to actual control-group cases) for logistic regression Model 2:
+logReg2_specificity <- specificity(logReg2_results, truth = fromSW, estimate = predictedClass)
+
+# calculate sensitivity (ratio of cases correctly classified as suicidal-group to actual suicidal-group cases) for logistic regression Model 2:
+logReg2_sensitivity <- sensitivity(logReg2_results, truth = fromSW, estimate = predictedClass)
+
+# calculate Kappa value (indicator of how much better the current model classifies compared to a model that randomly classifies based on class occurrence frequency; source is ) for logistic regression Model 2:
+logReg2_kappa <- kap(logReg2_results, truth = fromSW, estimate = predictedClass)
+
+# bind all model performance statistics for logistic regression Model 2 into one table, then clean up environment:
+logReg2_performance <- bind_rows(logReg2_accuracy, logReg2_sensitivity, logReg2_specificity, logReg2_kappa)
+rm(logReg2_accuracy, logReg2_sensitivity, logReg2_specificity, logReg2_kappa)
+
+# calculate and plot the area under the receiver operator curve (ROC; plots the false-positive rate on the x-axis and the true-positive rate on the y-axis; the closer the curve approaches to the top-left corner of the graph, the better the predictive ability of the model) for logistic regression Model 2:
+roc_auc(logReg2_results, truth = fromSW, probability0)
+logReg2_results %>% roc_curve(truth = fromSW, probability0) %>% 
+  autoplot()
+
+```
+
+
+```{r IDENTIFY BEST PREDICTOR VARIABLES OUT OF ALL LIWC VARIABLES}
+
+# prepare data for identifying best predictor variables:
+allPosts_LIWC_aggrByUser_Z_modelSelect <- allPosts_LIWC_aggrByUser_Z_train %>% 
+  select(-user_id) %>% 
+  relocate(fromSW, .after = last_col()) %>% 
+  rename(y = fromSW)
+allPosts_LIWC_aggrByUser_Z_modelSelect$y <- unlist(allPosts_LIWC_aggrByUser_Z_modelSelect$y)
+
+# identify best predictor variables:
+bestModel <- regsubsets(y ~ ., data = allPosts_LIWC_aggrByUser_Z_modelSelect, nv = 3, really.big = TRUE)
+summary(bestModel)
+
+```

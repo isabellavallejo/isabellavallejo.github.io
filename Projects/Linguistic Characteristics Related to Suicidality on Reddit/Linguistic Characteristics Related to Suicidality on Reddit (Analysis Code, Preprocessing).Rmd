@@ -1,0 +1,194 @@
+---
+title: "Thesis Analysis Code: Preprocessing"
+author: "Isabella Vallejo"
+date: "2023-04-06"
+output: html_document
+---
+
+
+```{r REFERENCE}
+
+# users from the control group (i.e., made no posts to r/SuicideWatch) have user IDs that are negative numbers
+
+# the "10 selected LIWC-22 variables" as described in our preregistration are:
+# (a) all-or-none cognition ("allnone")
+# (b) auxiliary verbs ("auxverb")
+# (c) common verbs ("verb")
+# (d) death ("death")
+# (e) fatigue ("fatigue")
+# (f) first-person plural pronouns ("we")
+# (g) first-person singular pronouns ("i")
+# (h) negative emotion ("emo_neg")
+# (i) word count ("WC")
+# (j) future reference ("focusfuture"), reverse-coded
+
+```
+
+
+```{r SETUP}
+
+# load libraries:
+library(tidyverse)
+
+```
+
+
+```{r LOAD DATA}
+
+# load raw text files:
+shared_task_posts_train <- read_csv("shared_task_posts_train.csv")
+shared_task_posts_test <- read_csv("shared_task_posts_test.csv")
+
+# load LIWC-22 output data:
+allPosts_LIWC <- read_csv("allPosts_LIWC.csv")
+
+```
+
+
+```{r CLEAN RAW DATA}
+
+# combine the two data files::
+allPosts_raw <- rbind(shared_task_posts_test, shared_task_posts_train)
+
+# combine the post_title and post_body columns, and remove all rows with NA:
+post_title_and_body <- str_c(allPosts_raw$post_title, allPosts_raw$post_body, sep = " ")
+allPosts_raw <- cbind(allPosts_raw, post_title_and_body) %>%
+  select(-c(post_title, post_body)) %>% 
+  drop_na()
+
+# remove any occurrences of de-identifiers (i.e., "_PERSON_" and "_URL_"):
+title_body_no_deID <- allPosts_raw$post_title_and_body %>%
+  str_replace_all(c("_PERSON_" = "", "_URL_" = ""))
+allPosts_raw <- cbind(allPosts_raw, title_body_no_deID) %>%
+  select(-c(post_title_and_body)) %>% 
+  rename(post_title_and_body = title_body_no_deID)
+
+# # save cleaned version of the raw data:
+# write_csv(allPosts_raw, "allPosts_raw.csv")
+
+```
+
+
+```{r AGGREGATE LIWC DATA BY USER; CREATES allPosts_LIWC_aggrByUser}
+
+# aggregate LIWC data by user ID; all variables (except WPS) are converted to weighted averages for each user, while WPS is converted to the "average of the WPS averages" for each user
+
+# get number of posts per user:
+postsPerUser <- allPosts_LIWC %>% 
+  count(user_id)
+
+# append counts of posts per user to the LIWC data, move some variables in the data to make next lines simpler, and rename variables:
+allPosts_LIWC_temp <- allPosts_LIWC %>%
+  left_join(postsPerUser, allPosts_LIWC, by = "user_id") %>%
+  relocate(n, .after = user_id) %>% 
+  relocate(WPS, .after = Segment) %>% 
+  rename(posts_per_user = n)
+
+# pull out only metadata from the LIWC data:
+allPosts_LIWC_metadata <- allPosts_LIWC_temp %>% 
+  select(post_id:subreddit, Segment)
+
+# pull out only LIWC scores from the LIWC data and multiply each by word count (variable "WC"):
+allPosts_LIWC_scoresXwc <- allPosts_LIWC_temp %>% 
+  mutate_at(vars(Analytic:Emoji), .funs = funs (. * WC))
+
+# take LIWC scores that have been multiplied by word count, group by user_id, and sum over user_id:
+allPosts_LIWC_userCounts <- allPosts_LIWC_scoresXwc %>%
+  group_by(user_id) %>%
+  select(user_id, WC:Emoji) %>%
+  summarise_all(sum)
+
+# divide grouped and summed LIWC scores by word count, resulting in the weighted average of each LIWC variable for each user_id:
+allPosts_LIWC_scoresByUser <- allPosts_LIWC_userCounts %>%
+  mutate_at(vars(Analytic:Emoji), .funs = funs (. / WC))
+
+# sum words-per-sentence (variable "WPS") over user_id:
+allPosts_LIWC_WPScounts <- allPosts_LIWC_temp %>% 
+  group_by(user_id) %>% 
+  select(user_id, WPS) %>% 
+  summarise_all(sum)
+
+# divide words-per-sentence scores that have been summed over user_id by each user's number of posts:
+allPosts_LIWC_avgWPS <- allPosts_LIWC_WPScounts
+allPosts_LIWC_avgWPS$avgWPS <- allPosts_LIWC_WPScounts$WPS / postsPerUser$n
+allPosts_LIWC_avgWPS <- subset(allPosts_LIWC_avgWPS, select = -c(WPS))
+
+# append average words-per-sentence per user_id scores to the LIWC data, reverse-code the future-focus variable ("focusfuture"), and remove any users that posted a total of fewer than  100 words from the LIWC data:
+allPosts_LIWC_aggrByUser <- allPosts_LIWC_scoresByUser %>% 
+  left_join(allPosts_LIWC_avgWPS, allPosts_LIWC_byUser, by = "user_id") %>% 
+  relocate(avgWPS, .after = WC) %>% 
+  mutate(focusfuture = -(focusfuture)) %>% 
+  filter(WC >= 100)
+
+# # save aggregated-by-user LIWC data:
+# write_csv(allPosts_LIWC_aggrByUser, "allPosts_LIWC_aggrByUser.csv")
+
+# append the posts-per-user counts to the aggregated-by-user LIWC data only for users that posted less than 100 words:
+postsPerAggrUser <- allPosts_LIWC_aggrByUser %>% 
+  left_join(postsPerUser, by = "user_id") %>% 
+  select(user_id, n, WC) %>% 
+  rename(posts_per_user = n)
+
+# # save the posts-per-aggregated-user data:
+# write_csv(postsPerAggrUser, "postsPerAggrUser.csv")
+
+```
+
+
+```{r STANDARDIZE AGGREGATED-BY-USER LIWC DATA; CREATES allPosts_LIWC_aggrByUser_Z}
+
+# standardize a subset of the LIWC variables in the aggregated-by-user LIWC data (i.e., only the variables that are not simple percentages)
+
+# define a function for "manually" standardizing the variables to a mean of 50 and a standard deviation of 10:
+scale_mean50_sd10 <- function(x) {
+  50 + (10 * ((x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE)))
+}
+
+# standardize the specified LIWC variables:
+allPosts_LIWC_aggrByUser_Z <- allPosts_LIWC_aggrByUser %>% 
+  mutate(WC = scale_mean50_sd10(WC)) %>% 
+  mutate(avgWPS = scale_mean50_sd10(avgWPS)) %>% 
+  mutate(Analytic = scale_mean50_sd10(Analytic)) %>% 
+  mutate(Clout = scale_mean50_sd10(Clout)) %>% 
+  mutate(Authentic = scale_mean50_sd10(Authentic)) %>% 
+  mutate(Tone = scale_mean50_sd10(Tone)) %>% 
+  mutate(AllPunc = scale_mean50_sd10(AllPunc)) %>% 
+  mutate(Period = scale_mean50_sd10(Period)) %>% 
+  mutate(Comma = scale_mean50_sd10(Comma)) %>% 
+  mutate(QMark = scale_mean50_sd10(QMark)) %>% 
+  mutate(Exclam = scale_mean50_sd10(Exclam)) %>% 
+  mutate(Apostro = scale_mean50_sd10(Apostro)) %>% 
+  mutate(OtherP = scale_mean50_sd10(OtherP)) %>% 
+  mutate(focusfuture = focusfuture + 7.91035)
+
+# # save the standardized aggregated-by-user LIWC data:
+# write_csv(allPosts_LIWC_aggrByUser_Z, "allPosts_LIWC_aggrByUser_Z.csv")
+
+```
+
+
+```{r PREPARE DATA FOR LOGISTIC REGRESSION MODELS 1 & 2}
+
+# prepare standardized and aggregated-by-user LIWC data for building logistic regression Model 1 (uses all LIWC variables to predict fromSW) and logistic regression Model 2 (uses the selected 10 LIWC variables to predict fromSW)
+
+# get information needed to create train and test samples of the standardized and aggregated-by-user LIWC data:
+set.seed(1109)
+n_1and2 <- nrow(allPosts_LIWC_aggrByUser_Z)
+sample_1and2 <- sample(1:n_1and2, size = round(0.6 * n_1and2), replace= FALSE)
+
+# create a dummy variable "fromSW" (aka, "from suicidal group") that equals 0 when a user is in the control group (i.e., has a negative user ID) and equals 1 when a user is in the suicidal group (i.e., has a positive user ID):
+allPosts_LIWC_aggrByUser_Z_fromSW <- allPosts_LIWC_aggrByUser_Z %>% 
+  mutate(fromSW = case_when(user_id < 0 ~ 0, TRUE ~ 1)) %>% 
+  mutate(fromSW = as.factor(fromSW)) %>% 
+  select(user_id:fromSW) %>% 
+  relocate(fromSW, .after = user_id)
+
+# create train and test samples of the standardized and aggregated-by-user LIWC data:
+allPosts_LIWC_aggrByUser_Z_train <- allPosts_LIWC_aggrByUser_Z_fromSW[sample_1and2 ,]
+allPosts_LIWC_aggrByUser_Z_test <- allPosts_LIWC_aggrByUser_Z_fromSW[-sample_1and2 ,]
+
+# # save the train and test samples of the standardized and aggregated-by-user LIWC data:
+# write_csv(allPosts_LIWC_aggrByUser_Z_train, "allPosts_LIWC_aggrByUser_Z_train.csv")
+# write_csv(allPosts_LIWC_aggrByUser_Z_test, "allPosts_LIWC_aggrByUser_Z_test.csv")
+
+```
