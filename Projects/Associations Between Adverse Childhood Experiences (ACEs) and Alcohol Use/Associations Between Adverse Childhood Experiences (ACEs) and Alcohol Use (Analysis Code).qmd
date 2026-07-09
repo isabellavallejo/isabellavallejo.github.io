@@ -1,0 +1,564 @@
+---
+title: "Final Project Analysis Code"
+subtitle: "DACSS 790Q: Advanced Quantitative Methods"
+author: "Isabella Vallejo"
+date: "2026-05-12"
+format: 
+  html: 
+    self-contained: true
+---
+
+# Setup
+
+```{r libraries}
+#| message: FALSE
+# import libraries
+library(gtsummary)
+library(tidyverse)
+library(haven)
+library(skimr)
+library(corrplot)
+library(psych)
+library(pscl)
+library(stargazer)
+library(ggeffects)
+library(DescTools)
+```
+
+# Data Cleaning
+
+```{r data-full}
+# # import full data and drop respondents that did not respond to the ACE questions, then save
+# brfss_subset <- read_xpt(r"(data\brfss.xpt)") |> 
+#   drop_na(ACEDEPRS:ACEADNED) |> 
+#   write_xpt(r"(data\brfss_subset.xpt)")
+```
+
+```{r data-import}
+# read in data
+brfss <- read_xpt(r"(data\brfss_subset.xpt)")
+```
+
+```{r variables}
+# select variables to keep
+vars <- c(
+  "ALCDAY4", "_RFDRHV9", "ACEDEPRS", "ACEDRINK", "ACEDRUGS", "ACEPRISN", "ACEDIVRC", "ACEPUNCH", "ACEHURT1", "ACESWEAR", "ACETOUCH", "ACETTHEM", "ACEHVSEX", "ACEADSAF", "ACEADNED", "PHYSHLTH", "MENTHLTH", "_AGEG5YR", "_SEX", "SOMALE", "SOFEMALE", "_RACE", "_EDUCAG", "_INCOMG1", "_URBSTAT", "MARITAL", "EMPLOY1", "VETERAN3"
+)
+# select new names for variables
+var_names <- c(
+  "alcohol", "heavydrink", "ace_mentalhealth", "ace_alcohol", "ace_drugs", "ace_prison", "ace_divorce", "ace_witnessedabuse", "ace_physicalabuse", "ace_verbalabuse", "ace_sexualabuse_touch", "ace_sexualabuse_touchthem", "ace_sexualabuse_havesex", "ace_pf_safety", "ace_pf_needsmet", "health_physical", "health_mental", "age", "sex", "so_male", "so_female", "race", "education", "income", "urban", "marital", "employment", "veteran"
+)
+# select only ACE variables
+vars_ace <- c(
+  "ace_mentalhealth", "ace_alcohol", "ace_drugs", "ace_prison", "ace_divorce", "ace_witnessedabuse", "ace_physicalabuse", "ace_verbalabuse", "ace_sexualabuse_touch", "ace_sexualabuse_touchthem", "ace_sexualabuse_havesex", "ace_pf_safety", "ace_pf_needsmet"
+)
+```
+
+```{r data-cleaning}
+# clean the data
+brfss <- brfss |> 
+  select(all_of(vars)) |> 
+  rename_with(~ var_names, all_of(vars)) |> 
+  mutate(
+    alcohol = case_when(
+      alcohol == 888 ~ 0,
+      alcohol >= 101 & alcohol <= 199 ~ (alcohol - 100) * 4,
+      alcohol >= 201 & alcohol <= 299 ~ alcohol - 200, 
+      alcohol == 100 | alcohol == 777 | alcohol == 999 | alcohol == is.na(alcohol) ~ NA
+    ), 
+    heavydrink = case_when(
+      heavydrink == 1 ~ 0, 
+      heavydrink == 2 ~ 1, 
+      heavydrink == 9 ~ NA
+    ), 
+    across(ace_mentalhealth:ace_prison, ~ case_when(
+      .x == 1 ~ 1, 
+      .x == 2 ~ 0, 
+      .x == 7 | .x == 9 ~ NA
+    )), 
+    ace_divorce = case_when(
+      ace_divorce == 1 ~ 1, 
+      ace_divorce == 2 ~ 0, 
+      ace_divorce == 7 | ace_divorce == 8 | ace_divorce == 9 ~ NA
+    ), 
+    across(ace_witnessedabuse:ace_sexualabuse_havesex, ~ case_when(
+      .x == 1 ~ 0, 
+      .x == 2 ~ 1, 
+      .x == 3 ~ 1, 
+      .x == 7 | .x == 9 ~ NA
+    )), 
+    across(ace_pf_safety:ace_pf_needsmet, ~ case_when(
+      .x == 1 ~ 0,
+      .x == 2 ~ 1,
+      .x == 3 ~ 1,
+      .x == 4 ~ 1,
+      .x == 5 ~ 1,
+      .x == 7 | .x == 9 ~ NA
+    )), 
+    health_physical = case_when(
+      health_physical <= 30 ~ health_physical, 
+      health_physical == 88 ~ 0, 
+      health_physical == 77 | health_physical == 99 ~ NA
+    ), 
+    health_mental = case_when(
+      health_mental <= 30 ~ health_mental, 
+      health_mental == 88 ~ 0, 
+      health_mental == 77 | health_mental == 99 ~ NA
+    ), 
+    age = factor(
+      case_when(
+        age <= 13 ~ age,
+        age == 14 ~ NA
+      ), 
+      levels = 1:13,
+      labels = c(
+        "18-24", "25-29", "30-34", "35-39", "40-44", "45-49", "50-54", "55-59", "60-64", "65-69", "70-74", "75-79", "80+"
+      )
+    ),
+    male = factor(
+      case_when(
+        sex == 1 ~ 1,
+        sex == 2 ~ 0
+      ),
+      levels = c(0, 1),
+      labels = c("Female", "Male")
+    ),
+    sexuality = factor(
+      case_when(
+        so_male == 1 | so_female == 1 ~ 1, 
+        so_male == 2 | so_female == 2 ~ 2, 
+        so_male == 3 | so_female == 3 ~ 3, 
+        so_male == 4 | so_female == 4 ~ 4, 
+        so_male == 7 | so_female == 7 ~ NA, 
+        so_male == 9 | so_female == 9 ~ NA, 
+        so_male == is.na(so_male) | so_female == is.na(so_female) ~ NA
+      ), 
+      levels = 1:4,
+      labels = c("Gay", "Straight", "Bisexual", "Other")
+    ), 
+    race = factor(
+      case_when(
+        race <= 8 ~ race, 
+        race == 9 ~ NA
+      ), 
+      levels = 1:8,
+      labels = c(
+        "White", "Black", "American Indian or Alaskan Native", "Asian", "Native Hawaiian or Pacific Islander", "Other Non-Hispanic", "Multiracial", "Hispanic"
+      )
+    ), 
+    education = factor(
+      case_when(
+        education <= 4 ~ education, 
+        education == 9 ~ NA
+      ), 
+      levels = 1:4,
+      labels = c(
+        "Did Not Graduate High School", "Graduated High School", "Some College or Technical School", "Graduated from College or Technical School"
+      )
+    ), 
+    income = factor(
+      case_when(
+        income <= 7 ~ income, 
+        income == 9 ~ NA
+      ), 
+      levels = 1:7,
+      labels = c(
+        "Less Than $15k", "$15k-$25k", "$25k-$35k", "$35k-$50k", "$50k-$100k", "$100k-$200k", "Greater Than $200k"
+      )
+    ), 
+    urban = factor(
+      case_when(
+        urban == 1 ~ 1, 
+        urban == 2 ~ 0
+      ), 
+      levels = c(0, 1),
+      labels = c("Rural", "Urban")
+    ), 
+    marital = factor(
+      case_when(
+        marital <= 6 ~ marital, 
+        marital == 9 ~ NA
+      ), 
+      levels = 1:6,
+      labels = c(
+        "Married", "Divorced", "Widowed", "Separated", "Never Married", "Unmarried with Partner"
+      )
+    ), 
+    employment = factor(
+      case_when(
+        employment <= 8 ~ employment,
+        employment == 9 ~ NA
+      ),
+      levels = 1:8,
+      labels = c(
+        "Employed", "Self-Employed", "Unemployed Greater Than 1 Year", "Unemployed Less Than 1 Year", "Homemaker", "Student", "Retired", "Unable to Work"
+      )
+    ),
+    veteran = factor(
+      case_when(
+        veteran == 1 ~ 1, 
+        veteran == 2 ~ 0, 
+        veteran == 7 | veteran == 9 ~ NA
+      ), 
+      levels = c(0, 1),
+      labels = c("Not a Veteran", "Veteran")
+    )
+  ) |>
+  mutate(across(alcohol:health_mental, as.integer)) |> 
+  mutate(sexuality = relevel(sexuality, ref = 2)) |> 
+  select(-c(sex, so_male, so_female)) |> 
+  relocate(c(male, sexuality), .after = age)
+```
+
+# Exploratory Data Analysis
+
+```{r skim}
+# get an overview of the data
+skim(brfss)
+# calculate means and SDs of dependent variables
+mean(brfss$alcohol, na.rm = TRUE)
+sd(brfss$alcohol, na.rm = TRUE)
+mean(brfss$heavydrink, na.rm = TRUE)
+sd(brfss$heavydrink, na.rm = TRUE)
+```
+
+```{r plot-alcohol}
+# plot alcohol use as binary
+brfss |> 
+  select(alcohol) |> 
+  drop_na() |> 
+  ggplot(aes(x = if_else(alcohol == 0, "No", "Yes"))) + 
+  geom_bar() + 
+  labs(
+      title = "Distribution of Alcohol Use by All Respondents", 
+      subtitle = "* Missing responses have been removed.", 
+      x = "Consumed Alcohol in Past Month?", 
+      y = "Number of Respondents"
+  )
+ggsave(r"(results\plot_alcohol_binary.png)")
+# plot alcohol use as count
+x_min <- min(brfss$alcohol, na.rm = TRUE)
+x_max <- max(brfss$alcohol, na.rm = TRUE)
+brfss |> 
+  select(alcohol) |> 
+  filter(alcohol != 0 | alcohol != NA) |> 
+  ggplot(aes(x = alcohol)) + 
+  geom_bar() + 
+  scale_x_continuous(
+    x_min, x_max, 
+    breaks = seq(x_min, x_max, 5), 
+    name = "Number of Days Consumed Alcohol in Past Month"
+  ) + 
+  labs(
+    title = "Distribution of Alcohol Use by Respondents that Report Drinking", 
+    y = "Number of Respondents"
+  )
+ggsave(r"(results\plot_alcohol_count.png)")
+```
+
+```{r plot-heavydrink}
+# plot heavy drinking as binary
+brfss |> 
+  select(heavydrink) |> 
+  drop_na() |> 
+  ggplot(aes(x = if_else(heavydrink == 0, "No", "Yes"))) + 
+  geom_bar() + 
+  labs(
+      title = "Distribution of Heavy Drinking by All Respondents", 
+      subtitle = "* Missing responses have been removed.", 
+      x = "Drank Heavily in Past Month?", 
+      y = "Number of Respondents"
+  )
+ggsave(r"(results\plot_heavydrink.png)")
+```
+
+```{r demographics}
+# get summary table for demographic variables
+brfss |> 
+  select(age:veteran) |> 
+  tbl_summary(label = list(
+    age = "Age (Years)", 
+    male = "Sex", 
+    sexuality = "Sexual Orientation", 
+    race = "Race", 
+    education = "Education Level", 
+    income = "Income Level", 
+    urban = "Urban Status", 
+    marital = "Marital Status", 
+    employment = "Employment Status", 
+    veteran = "Veteran Status"
+  )
+)
+```
+
+# Factor Analysis & New Scale Creation
+
+```{r fa-corrs}
+# plot correlation matrix for ACE variables, excluding ACE variables for protective factors
+vars_fa <- brfss |> 
+  select(ace_mentalhealth:ace_sexualabuse_havesex)
+corrplot(
+  cor(vars_fa, use = "pairwise.complete.obs"), 
+  type = "lower", 
+  method = "shade"
+)
+```
+
+```{r fa}
+# set number of factors based on scree plot
+scree(vars_fa)
+n_factors = 3
+# factor analyze
+fa(vars_fa, nfactors = n_factors, rotate = "oblimin", fm = "pa")
+```
+
+```{r alpha}
+# select variables for each ACE factor scale
+vars_ace_f1 <- brfss |> 
+  select(c("ace_sexualabuse_touch", "ace_sexualabuse_touchthem", "ace_sexualabuse_havesex"))
+vars_ace_f2 <- brfss |> 
+  select(c("ace_witnessedabuse", "ace_physicalabuse", "ace_verbalabuse"))
+vars_ace_f3 <- brfss |> 
+  select(c("ace_mentalhealth", "ace_alcohol", "ace_drugs", "ace_prison", "ace_divorce"))
+# calculate alpha for each ACE factor scale
+alpha(vars_ace_f1, check.keys = TRUE)
+alpha(vars_ace_f2, check.keys = TRUE)
+alpha(vars_ace_f3, check.keys = TRUE)
+```
+
+```{r new-scales}
+# select variables for each new scale
+vars_sexualabuse <- c("ace_sexualabuse_touch", "ace_sexualabuse_touchthem", "ace_sexualabuse_havesex")
+vars_otherabuse <- c("ace_witnessedabuse", "ace_physicalabuse", "ace_verbalabuse")
+vars_household <- c("ace_mentalhealth", "ace_alcohol", "ace_drugs", "ace_prison", "ace_divorce")
+# create new composite ACE scales
+brfss <- brfss |> 
+  mutate(
+    ace_sexualabuse = if_else(if_any(all_of(vars_sexualabuse), ~ . == 0), 0, 1), 
+    ace_otherabuse = if_else(if_any(all_of(vars_otherabuse), ~ . == 0), 0, 1), 
+    ace_household = if_else(if_any(all_of(vars_household), ~ . == 0), 0, 1), 
+    .after = heavydrink
+  ) |> 
+  select(-c(vars_sexualabuse, vars_otherabuse, vars_household))
+```
+
+# Models
+
+## Model 1: `alcohol`
+
+```{r mean-variance}
+# test the mean=variance assumption to decide on Poisson or Negative Binomial
+var(brfss$alcohol, na.rm = TRUE) / mean(brfss$alcohol, na.rm = TRUE)
+```
+
+```{r model-alcohol}
+# fit model
+model_alcohol <- zeroinfl(
+  alcohol ~ 
+    ace_sexualabuse + ace_otherabuse + ace_household + 
+    ace_pf_safety + ace_pf_needsmet + 
+    health_physical + health_mental + 
+    age + male + sexuality + race + education + income + urban + marital + employment + veteran, 
+  data = brfss, 
+  dist = "negbin"
+)
+```
+
+## Model 2: `heavydrink`
+
+```{r model-heavydrink}
+# fit model
+model_heavydrink <- glm(
+  heavydrink ~ 
+    ace_sexualabuse + ace_otherabuse + ace_household + 
+    ace_pf_safety + ace_pf_needsmet + 
+    health_physical + health_mental + 
+    age + male + sexuality + race + education + income + urban + marital + employment + veteran, 
+  data = brfss, 
+  family = binomial(link = "logit")
+)
+```
+
+## Model Results
+
+```{r coef-names}
+# rename coefficients for model summary table
+coef_names <- c(
+  "ACE: Sexual Abuse",
+  "ACE: Other Abuse",
+  "ACE: Household Factors",
+  "Protective Factor: Safe Adult",
+  "Protective Factor: Needs Met",
+  "Physical Health",
+  "Mental Health",
+  "Age: 25-29",
+  "Age: 30-34",
+  "Age: 35-39",
+  "Age: 40-44",
+  "Age: 45-49",
+  "Age: 50-54",
+  "Age: 55-59",
+  "Age: 60-64",
+  "Age: 65-69",
+  "Age: 70-74",
+  "Age: 75-79",
+  "Age: 80+",
+  "Sex: Male",
+  "Sexual Orientation: Gay",
+  "Sexual Orientation: Bisexual",
+  "Sexual Orientation: Other",
+  "Race: Black",
+  "Race: American Indian or Alaskan Native",
+  "Race: Asian",
+  "Race: Native Hawaiian or Pacific Islander",
+  "Race: Other Non-Hispanic",
+  "Race: Multiracial",
+  "Race: Hispanic",
+  "Education: Graduated High School",
+  "Education: Some College or Technical School",
+  "Education: Graduated from College or Technical School",
+  "Income: $15k-$25k",
+  "Income: $25k-$35k",
+  "Income: $35k-$50k",
+  "Income: $50k-$100k",
+  "Income: $100k-$200k",
+  "Income: Greater Than $200k",
+  "Urban/Rural Status: Urban",
+  "Marital Status: Divorced",
+  "Marital Status: Widowed",
+  "Marital Status: Separated",
+  "Marital Status: Never Married",
+  "Marital Status: Unmarried with partner",
+  "Employment Status: Self-Employed",
+  "Employment Status: Unemployed Greater Than 1 Year",
+  "Employment Status: Unemployed Less Than 1 Year",
+  "Employment Status: Homemaker",
+  "Employment Status: Student",
+  "Employment Status: Retired",
+  "Employment Status: Unable to Work",
+  "Veteran Status: Veteran"
+)
+```
+
+```{r model-results}
+# view results of both models
+stargazer(
+  model_alcohol, model_heavydrink, 
+  digits = 3, 
+  model.names = FALSE, 
+  model.numbers = FALSE, 
+  dep.var.labels = c("Alcohol Use", "Heavy Drinking"), 
+  covariate.labels = coef_names, 
+  single.row = TRUE, 
+  type = "html", 
+  out = r"(results\model_results.html)"
+)
+```
+
+```{r preds}
+# set variables for plotting
+predictors <- c("ace_sexualabuse", "ace_otherabuse", "ace_household")
+# get and save predictions for model_alcohol
+preds_alcohol = tibble()
+preds_alcohol <- map_dfr(
+  predictors, ~ {
+    ggpredict(model_alcohol, terms = .x, condition = list(
+      health_physical = mean(brfss$health_physical, na.rm = TRUE),
+      health_mental = mean(brfss$health_mental, na.rm = TRUE), 
+      age = "80+",
+      male = "Female",
+      sexuality = "Straight",
+      race = "White",
+      education = "Graduated from College or Technical School",
+      income = "$50k-$100k",
+      urban = "Urban",
+      marital = "Married",
+      employment = "Retired",
+      veteran = "Not a Veteran"
+    )) |> 
+      mutate(var = .x) |> 
+      drop_na()
+  }
+)
+write_csv(preds_alcohol, r"(results\preds_alcohol.csv)")
+# get and save predictions for model_heavydrink
+preds_heavydrink = tibble()
+preds_heavydrink <- map_dfr(
+  predictors, ~ {
+    ggpredict(model_heavydrink, terms = .x, condition = list(
+      health_physical = mean(brfss$health_physical, na.rm = TRUE),
+      health_mental = mean(brfss$health_mental, na.rm = TRUE), 
+      age = "80+",
+      male = "Female",
+      sexuality = "Straight",
+      race = "White",
+      education = "Graduated from College or Technical School",
+      income = "$50k-$100k",
+      urban = "Urban",
+      marital = "Married",
+      employment = "Retired",
+      veteran = "Not a Veteran"
+    )) |> 
+      mutate(var = .x) |> 
+      drop_na()
+  }
+)
+write_csv(preds_heavydrink, r"(results\preds_heavydrink.csv)")
+```
+
+```{r pred-plots}
+# rename predictors for plotting
+preds_labels <- c(
+  "ace_household" = "ACE: Household Factors", 
+  "ace_otherabuse" = "ACE: Other Abuse", 
+  "ace_sexualabuse" = "ACE: Sexual Abuse"
+)
+# plot predictions for model_alcohol
+preds_alcohol |> 
+  ggplot(aes(x = factor(x), y = predicted)) + 
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  scale_x_discrete(breaks = c(0, 1), labels = c("No", "Yes")) + 
+  facet_grid(. ~var, labeller = as_labeller(preds_labels)) + 
+  labs(
+    title = "Predicted Number of Days Consumed Alcohol in Past Month, by ACE\nCategory", 
+    x = "Experienced ACE Category?", 
+    y = "Predicted Number of Days"
+  )
+ggsave(r"(results\predplot_alcohol.png)")
+# plot predictions for model_heavydrink
+preds_heavydrink |> 
+  ggplot(aes(x = factor(x), y = predicted)) + 
+  geom_bar(stat = "identity") + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  scale_x_discrete(breaks = c(0, 1), labels = c("No", "Yes")) + 
+  facet_grid(. ~var, labeller = as_labeller(preds_labels)) + 
+  labs(
+    title = "Predicted Probability of Heavy Drinking, by ACE Category", 
+    x = "Experienced ACE Category?", 
+    y = "Predicted Probability"
+  )
+ggsave(r"(results\predplot_heavydrink.png)")
+```
+
+```{r model-fit-eval}
+# compare AIC of original zero-inflated alcohol model to a comparison non-inflated alcohol model
+model_alcohol_comp <- MASS::glm.nb(
+  alcohol ~ 
+    ace_sexualabuse + ace_otherabuse + ace_household + 
+    ace_pf_safety + ace_pf_needsmet + 
+    health_physical + health_mental + 
+    age + male + sexuality + race + education + income + urban + marital + employment + veteran, 
+  data = brfss
+)
+AIC(model_alcohol) < AIC(model_alcohol_comp)
+AIC(model_alcohol)
+AIC(model_alcohol_comp)
+# compare AIC of original heavydrink logistic regression model to a comparison null heavydrink logistic regression model
+model_heavydrink_comp <- glm(
+  heavydrink ~ 1, data = brfss, family = binomial(link = "logit")
+)
+AIC(model_heavydrink) < AIC(model_heavydrink_comp)
+AIC(model_heavydrink)
+AIC(model_heavydrink_comp)
+```
