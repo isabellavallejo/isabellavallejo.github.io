@@ -18,19 +18,19 @@ Python, R, Statistical Modeling, Machine Learning, Natural Language Processing (
 
 ## Selected Projects
 
-### [Associations Between Adverse Childhood Experiences (ACEs) and Alcohol Use ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/c5b597c7c6382e46c227ad3a76463fe6375b74ad/Projects/ACEs%20and%20Alcohol%20Use)
+### [Associations Between Adverse Childhood Experiences (ACEs) and Alcohol Use ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/main/Projects/ACEs%20and%20Alcohol%20Use)
 
 _**R, Statistical Modeling, Regression Modeling, Factor Analysis**_
 
 Conducted an observational study of associations between ACEs and alcohol use in BRFSS survey data using regression modeling and factor analysis in R.
 
-### [Prediction of Health Outcomes from Drug-Related Hospital Admissions Data ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/9c62893ddf8256e532d15d89235556cd1910949a/Projects/Drug-Related%20Health%20Outcomes)
+### [Prediction of Health Outcomes from Drug-Related Hospital Admissions Data ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/main/Projects/Drug-Related%20Health%20Outcomes)
 
 _**Python (pandas, scikit-learn), Machine Learning, Classification, Model Evaluation**_
 
 Developed and evaluated performance of machine learning models (regularized regression, random forest, and support vector machine classifiers) using Python to predict health outcomes from data on 20K+ drug-related ER admissions.
 
-### [Linguistic Characteristics Related to Suicidality on Reddit ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/9c62893ddf8256e532d15d89235556cd1910949a/Projects/Language%20of%20Suicidality)
+### [Linguistic Characteristics Related to Suicidality on Reddit ↗](https://github.com/isabellavallejo/isabellavallejo.github.io/tree/main/Projects/Language%20of%20Suicidality)
 
 _**R, Natural Language Processing (NLP), Machine Learning, Regression Modeling**_
 
