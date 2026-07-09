@@ -1,31 +1,41 @@
 # Isabella Vallejo
+## Data Analyst & Quantitative Researcher in Computational Social Science and Public Health
 
 ---
 
-I’m a data analyst and quantitative researcher with a background in social science and public health, interested in applying computational and statistical methods to effect positive social change.
+Hi, I'm Bella!
 
-My work spans the full analytic and research lifecycle: wrangling and preprocessing large-scale datasets, conducting statistical analyses, applying machine learning and natural language processing methods, and communicating results to both technical and non-technical audiences. I’ve also worked in clinical and public health settings, where I developed a valuable understanding of both the human context behind data and the complexities involved in translating research into applied settings.
+I’m a data analyst and quantitative researcher with a background in computational social science and public health, passionate about using quantitative methods to develop insights that effect positive social change.
 
-#### Skills: R, Python, Statistical Modeling, Machine Learning, Applied NLP & LLMs, Research Design
+I'm experienced in using technical tools like Python, SQL, and R to employ a variety of analytic and statistical methods, including machine learning, statistical modeling, and natural language processing. I'm also an adept problem-solver and communicator who aims to uncover and share data-driven insights that enable meaningful action. Additionally, I've developed an appreciation of the complexity of translating findings into action through my work in both academic research and applied clinical settings, a perspective that I center in my work.
+
+#### Skills: Python, R, Machine Learning, Statistical Modeling, Natural Language Processing (NLP), Large Language Models (LLM)
 
 ## Education
-- **M.S., Data Analytics and Computational Social Science** | University of Massachusetts Amherst (May 2026)
-- **B.S., Psychology, with Minor in Data Science** | Florida Atlantic University, Harriet L. Wilkes Honors College (May 2023)
+- **Master of Science in Data Analytics and Computational Social Science** | University of Massachusetts Amherst (May 2026)
+- **Bachelor of Science in Psychology, Minor in Data Science** | Florida Atlantic University, Harriet L. Wilkes Honors College (May 2023)
 
 ## Selected Projects
 
-### Adverse Childhood Experiences (ACEs) and Alcohol Misuse
+### [Associations Between Adverse Childhood Experiences (ACEs) and Alcohol Use](https://github.com/isabellavallejo/aces-alcohol-misuse)
 #### Spring 2026
-[Research Paper](https://github.com/isabellavallejo/aces-alcohol-misuse)
 
-** DACSS 790Q Final Project; fill in info/files once project is complete
+Conducted an observational study of associations between ACEs and alcohol use in BRFSS survey data using regression modeling and factor analysis in R.
 
-### Predicting Patient Outcomes from Drug-Related Hospital Admission Data
+### [Prediction of Health Outcomes from Drug-Related Hospital Admissions Data](https://github.com/isabellavallejo/drug-related-patient-outcomes)
 #### Spring 2026
-[Report](https://github.com/isabellavallejo/drug-related-patient-outcomes)
 
-** DACSS 756 Final Project; fill in info/files once project is complete
+Developed and evaluated performance of machine learning models (regularized regression, random forest, and support vector machine classifiers) using Python to predict health outcomes from data on 20K+ drug-related ER admissions.
+
+### [Linguistic Characteristics Related to Suicidality on Reddit](https://github.com/isabellavallejo/suicidality-language-reddit)
+#### Spring 2022 - Spring 2023
+
+Conducted an archival study of language patterns associated with suicidality in Reddit post data using machine learning and natural language processing methods in R.
 
 ## Publications
-1. Varadarajan, V., Lahnala, A., V Ganesan, A., Dey, G., Mangalik, S., Bucur, A.-M., Soni, N., Rao, R., Lanning, K., Vallejo, I., Flek, L., Schwartz, H. A., Welch, C., & Boyd, R. (2024). Archetypes and entropy: Theory-driven extraction of evidence for suicide risk. In A. Yates, B. Desmet, E. Prud’hommeaux, A. Zirikly, S. Bedrick, S. MacAvaney, K. Bar, M. Ireland, & Y. Ophir (Eds.), Proceedings of the 9th Workshop on Computational Linguistics and Clinical Psychology (CLPsych 2024) (pp. 278–291). Association for Computational Linguistics. https://aclanthology.org/2024.clpsych-1.28
-2. Wetherell, G., Thompson, J. L., Vallejo, I., & Lanning, K. (2023). One nation, under war: Did the language of Fox News and MSNBC converge during the invasion of Ukraine? Analyses of Social Issues and Public Policy, 23(2), 495–512. https://doi.org/10.1111/asap.12357
+
+Boyd, R. L., Vallejo, I., & Lanning, K. (in press). Toward an integrative science of suicidality: Understanding suicide risk factors through real-world natural language. Journal of Psychopathology and Clinical Science.
+
+Varadarajan, V., Lahnala, A., V Ganesan, A., Dey, G., Mangalik, S., Bucur, A.-M., Soni, N., Rao, R., Lanning, K., Vallejo, I., Flek, L., Schwartz, H. A., Welch, C., & Boyd, R. (2024). Archetypes and entropy: Theory-driven extraction of evidence for suicide risk. In A. Yates, B. Desmet, E. Prud’hommeaux, A. Zirikly, S. Bedrick, S. MacAvaney, K. Bar, M. Ireland, & Y. Ophir (Eds.), Proceedings of the 9th Workshop on Computational Linguistics and Clinical Psychology (CLPsych 2024) (pp. 278–291). Association for Computational Linguistics. https://doi.org/10.18653/v1/2024.clpsych-1.28
+
+Wetherell, G., Thompson, J. L., Vallejo, I., & Lanning, K. (2023). One nation, under war: Did the language of Fox News and MSNBC converge during the invasion of Ukraine? Analyses of Social Issues and Public Policy, 23(2), 495–512. https://doi.org/10.1111/asap.12357
