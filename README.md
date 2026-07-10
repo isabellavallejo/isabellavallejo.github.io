@@ -1,5 +1,8 @@
 # Isabella Vallejo
-## Data Analyst & Quantitative Researcher | Computational Social Science & Public Health
+
+**Data Analyst & Quantitative Researcher**
+
+**Computational Social Science & Public Health**
 
 ---
 
