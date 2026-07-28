@@ -10,7 +10,7 @@ Hi, I'm Bella!
 
 I’m a data analyst and quantitative researcher with a background in computational social science and public health, passionate about using quantitative methods to develop insights that effect positive social change.
 
-I'm experienced in using technical tools like Python, SQL, and R to employ a variety of analytic and statistical methods, including machine learning, statistical modeling, and natural language processing. I'm also an adept problem-solver and communicator who aims to uncover and share data-driven insights that enable meaningful action. Additionally, I've developed an appreciation of the complexity of translating findings into action through experience in both academic research and applied clinical settings, a perspective that I center in my work.
+I'm experienced in using technical tools like Python and R to employ a variety of analytic and statistical methods, including machine learning, statistical modeling, and natural language processing. I'm also an adept problem-solver and communicator who aims to uncover and share data-driven insights that enable meaningful action. Additionally, I've developed an appreciation of the complexity of translating findings into action through experience in both academic research and applied clinical settings, a perspective that I center in my work.
 
 ## Education
 - **M.S. in Data Analytics and Computational Social Science** | University of Massachusetts Amherst (May 2026)
