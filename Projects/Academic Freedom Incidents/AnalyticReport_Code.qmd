@@ -1,0 +1,676 @@
+---
+title: "Are Scholars Under Fire?"
+subtitle: "A look into the state of academic freedom in the United States"
+author: "Isabella Vallejo"
+date: "2025-07-01"
+format: 
+  html: 
+    embed-resources: true
+    self-contained-math: true
+    mainfont: cambria
+editor: visual
+---
+
+------------------------------------------------------------------------
+
+Political tensions have been rising in the United States over the past few decades. A 2023 survey by the Pew Research Center found that a majority of Americans feel "always or often exhausted" when thinking about politics and that Americans overwhelmingly use negative terms to describe their feelings about politics. It's likely that you have felt this way, too, at one point or another. Another survey by the Pew Research Center conducted a year earlier in 2022 found that, over time, negative feelings towards the "other" political party have swelled as well – a majority of Americans described the political party that opposes their own negatively, using words such as "dishonest" and "immoral". The political events of 2025 so far have potentially deepened these feelings.
+
+Increasing negative feelings towards others leads to increasing intolerance of their ideas, something that is apparent anecdotally in American universities. Controversies about what schools should or should not teach or what professors should or should not do are common, which infringe upon the right to academic freedom. The American Association of University Professors defines academic freedom as the freedom of people involved in education to freely speak and engage with issues, teach, and conduct and publish scholarly research without outside interference. Critically, this means that someone affiliated with education should be able to express themselves freely in both their professional *and* personal lives without concern for unrelated professional consequences.
+
+Taking a look at the news right now certainly implies that academic freedom is at stake. But is it *really*? To answer this question, I'll look at and discuss data on incidents of infringement on academic freedom, which has been compiled and made available by the organization Foundation for Individual Rights and Expression (FIRE). This data, referred to as Scholars Under Fire, contains information about over a thousand different incidents that took place between 2000 and the present in which an individual scholar associated with higher education was involved in an incident related to academic freedom. These incidents range from investigations to firings to lawsuits, as well as situations where a controversy occurred but no official action was taken against the involved scholar.
+
+An important piece of information contained in the Scholars Under Fire database is political direction, which is the direction on the political spectrum from which opposition to the scholar involved in the incident came. To get a better idea of how this idea works, let's take a look at the left-right political spectrum:
+
+![*Source: Encyclopedia Britannica*](https://cdn.britannica.com/26/241726-050-F69956E0/political-spectrum.jpg)
+
+Political direction is defined *relative* to the targeted scholar's political position on the involved issues. In other words, if a professor expressed views on abortion that would be considered extremely right-leaning but faced opposition from conservative students who held less extreme but still right-leaning views on abortion, this would be considered opposition "from the left" even though both involved parties expressed right-leaning views.
+
+Let's dive into the data on the state of academic freedom in the United States!
+
+------------------------------------------------------------------------
+
+```{r libraries}
+#| include: false
+
+# load libraries
+library(tidyverse)
+library(sf)
+library(gganimate)
+library(gifski)
+
+```
+
+```{r data-import}
+#| include: false
+
+# read in and clean the Scholars Under Fire dataset
+incidents <- read_csv("ScholarsUnderFire.csv") |> 
+  select(-c(name, type, speaker_performer_title, reinvited, grade, petition_against, petition_for, 
+            scholar_expresion, scholar_response, scholar, context, response_details, read_more)) |> 
+  mutate(political_direction = case_when(political_direction == "From the Left" ~ "left", 
+                                         political_direction == "From the Right" ~ "right", 
+                                         political_direction == "Not Applicable" ~ "none")) |> 
+  filter(political_direction != "none") |> 
+  relocate(c(political_direction, school, school_type, controversy_topics, type_of_expression, sources,
+             public_response, outcome), .after = year) |> 
+  rename(topics = controversy_topics, 
+         expression_type = type_of_expression, 
+         opposition_from = sources, 
+         explanation = controversy_explanation)
+
+# read in shapefiles for creating maps
+usa_shapefile <- st_read("usa_shapefiles/cb_2018_us_state_500k.shp")
+
+# merge shapefile with school data
+join_schools <- incidents |> 
+  rename(Direction = political_direction) |> 
+  mutate(school = toupper(trimws(school))) |> 
+  distinct()
+universities_shapefile <- st_read("us-colleges-and-universities/us-colleges-and-universities.shp") |> 
+  rename(school = name) |> 
+  mutate(school = toupper(trimws(school))) |> 
+  distinct() |> 
+  right_join(join_schools, by = "school") |> 
+  drop_na()
+
+# clean up
+remove(join_schools)
+
+```
+
+```{r data-cleaning-topic_counts}
+#| include: false
+
+# count topics involved in both from-the-left and from-the-right incidents
+topic_counts_both <- tibble(
+  abortion = sum(str_detect(incidents$topics, "Abortion")), 
+  civil_liberties = sum(str_detect(incidents$topics, "Civil Liberties")), 
+  class_or_policy_issues = sum(str_detect(incidents$topics, "Class or Policy Issues")), 
+  covid = sum(str_detect(incidents$topics, "COVID")), 
+  elections = sum(str_detect(incidents$topics, "Elections")), 
+  environment = sum(str_detect(incidents$topics, "Environment")), 
+  foreign_affairs = sum(str_detect(incidents$topics, "Foreign Affairs")), 
+  gender = sum(str_detect(incidents$topics, "Gender")), 
+  health = sum(str_detect(incidents$topics, "Health")), 
+  immigration = sum(str_detect(incidents$topics, "Immigration")), 
+  institutional_policy = sum(str_detect(incidents$topics, "Institutional policy")), 
+  israel_palestine = sum(str_detect(incidents$topics, "Israeli-Palestinian Conflict")), 
+  judiciary_system = sum(str_detect(incidents$topics, "Judiciary System")), 
+  police = sum(str_detect(incidents$topics, "Police")), 
+  political_views = sum(str_detect(incidents$topics, "Political Views")), 
+  race = sum(str_detect(incidents$topics, "Race")), 
+  religion = sum(str_detect(incidents$topics, "Religion")), 
+  sexuality = sum(str_detect(incidents$topics, "Sexuality")), 
+  terrorism = sum(str_detect(incidents$topics, "Terrorism"))
+) |> 
+  pivot_longer(abortion:terrorism) |> 
+  rename(topic = name, 
+         n_both = value)
+
+# filter out only from-the-left incidents
+incidents <- incidents |> 
+  filter(political_direction == "left")
+
+# count topics involved in only from-the-left incidents
+topic_counts_left <- tibble(
+  abortion = sum(str_detect(incidents$topics, "Abortion")), 
+  civil_liberties = sum(str_detect(incidents$topics, "Civil Liberties")), 
+  class_or_policy_issues = sum(str_detect(incidents$topics, "Class or Policy Issues")), 
+  covid = sum(str_detect(incidents$topics, "COVID")), 
+  elections = sum(str_detect(incidents$topics, "Elections")), 
+  environment = sum(str_detect(incidents$topics, "Environment")), 
+  foreign_affairs = sum(str_detect(incidents$topics, "Foreign Affairs")), 
+  gender = sum(str_detect(incidents$topics, "Gender")), 
+  health = sum(str_detect(incidents$topics, "Health")), 
+  immigration = sum(str_detect(incidents$topics, "Immigration")), 
+  institutional_policy = sum(str_detect(incidents$topics, "Institutional policy")), 
+  israel_palestine = sum(str_detect(incidents$topics, "Israeli-Palestinian Conflict")), 
+  judiciary_system = sum(str_detect(incidents$topics, "Judiciary System")), 
+  police = sum(str_detect(incidents$topics, "Police")), 
+  political_views = sum(str_detect(incidents$topics, "Political Views")), 
+  race = sum(str_detect(incidents$topics, "Race")), 
+  religion = sum(str_detect(incidents$topics, "Religion")), 
+  sexuality = sum(str_detect(incidents$topics, "Sexuality")), 
+  terrorism = sum(str_detect(incidents$topics, "Terrorism"))
+) |> 
+  pivot_longer(abortion:terrorism) |> 
+  rename(topic = name, 
+         n_left = value)
+
+# revert to original data
+incidents <- read_csv("ScholarsUnderFire.csv") |> 
+  select(-c(name, type, speaker_performer_title, reinvited, grade, petition_against, petition_for, 
+            scholar_expresion, scholar_response, scholar, context, response_details, read_more)) |> 
+  mutate(political_direction = case_when(political_direction == "From the Left" ~ "left", 
+                                         political_direction == "From the Right" ~ "right", 
+                                         political_direction == "Not Applicable" ~ "none")) |> 
+  filter(political_direction != "none") |> 
+  relocate(c(political_direction, school, school_type, controversy_topics, type_of_expression, sources,
+             public_response, outcome), .after = year) |> 
+  rename(topics = controversy_topics, 
+         expression_type = type_of_expression, 
+         opposition_from = sources, 
+         explanation = controversy_explanation)
+
+# filter out only from-the-right incidents
+incidents <- incidents |> 
+  filter(political_direction == "right")
+
+# count topics involved in only from-the-right incidents
+topic_counts_right <- tibble(
+  abortion = sum(str_detect(incidents$topics, "Abortion")), 
+  civil_liberties = sum(str_detect(incidents$topics, "Civil Liberties")), 
+  class_or_policy_issues = sum(str_detect(incidents$topics, "Class or Policy Issues")), 
+  covid = sum(str_detect(incidents$topics, "COVID")), 
+  elections = sum(str_detect(incidents$topics, "Elections")), 
+  environment = sum(str_detect(incidents$topics, "Environment")), 
+  foreign_affairs = sum(str_detect(incidents$topics, "Foreign Affairs")), 
+  gender = sum(str_detect(incidents$topics, "Gender")), 
+  health = sum(str_detect(incidents$topics, "Health")), 
+  immigration = sum(str_detect(incidents$topics, "Immigration")), 
+  institutional_policy = sum(str_detect(incidents$topics, "Institutional policy")), 
+  israel_palestine = sum(str_detect(incidents$topics, "Israeli-Palestinian Conflict")), 
+  judiciary_system = sum(str_detect(incidents$topics, "Judiciary System")), 
+  police = sum(str_detect(incidents$topics, "Police")), 
+  political_views = sum(str_detect(incidents$topics, "Political Views")), 
+  race = sum(str_detect(incidents$topics, "Race")), 
+  religion = sum(str_detect(incidents$topics, "Religion")), 
+  sexuality = sum(str_detect(incidents$topics, "Sexuality")), 
+  terrorism = sum(str_detect(incidents$topics, "Terrorism"))
+) |> 
+  pivot_longer(abortion:terrorism) |> 
+  rename(topic = name, 
+         n_right = value)
+
+# combine into one aggregate dataset
+topic_counts <- topic_counts_both |> 
+  left_join(topic_counts_left, by = "topic") |> 
+  left_join(topic_counts_right, by = "topic")
+
+# clean up environment
+remove(topic_counts_both, topic_counts_left, topic_counts_right)
+
+# revert to original data one more time
+incidents <- read_csv("ScholarsUnderFire.csv") |> 
+  select(-c(name, type, speaker_performer_title, reinvited, grade, petition_against, petition_for, 
+            scholar_expresion, scholar_response, scholar, context, response_details, read_more)) |> 
+  mutate(political_direction = case_when(political_direction == "From the Left" ~ "left", 
+                                         political_direction == "From the Right" ~ "right", 
+                                         political_direction == "Not Applicable" ~ "none")) |> 
+  filter(political_direction != "none") |> 
+  relocate(c(political_direction, school, school_type, controversy_topics, type_of_expression, sources,
+             public_response, outcome), .after = year) |> 
+  rename(topics = controversy_topics, 
+         expression_type = type_of_expression, 
+         opposition_from = sources, 
+         explanation = controversy_explanation)
+
+# # save
+# write_csv(topic_counts, "topic_counts.csv")
+
+```
+
+```{r data-cleaning-incidents_by_year}
+#| include: false
+
+# count both from-the-left and from-the-right incidents per year
+n_incidents_both <- incidents |> 
+  filter(political_direction != "none") |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_both = count)
+
+# count from-the-left incidents per year
+n_incidents_left <- incidents |> 
+  filter(political_direction == "left") |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_left = count)
+
+# count from-the-right incidents per year
+n_incidents_right <- incidents |> 
+  filter(political_direction == "right") |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_right = count)
+
+# combine
+incidents_by_year <- n_incidents_both |> 
+  left_join(n_incidents_left, by = "year") |> 
+  left_join(n_incidents_right, by = "year") |> 
+  replace_na(list(n_incidents_left = 0, 
+                  n_incidents_right = 0))
+
+# clean up environment
+remove(n_incidents_both, n_incidents_left, n_incidents_right)
+
+# # save
+# write_csv(incidents_by_year, "incidents_by_year.csv")
+
+```
+
+```{r data-cleaning-incidents_by_year_ip}
+#| include: false
+
+# count both from-the-left and from-the-right incidents per year involving the Israeli-Palestinian conflict
+n_incidents_both_ip <- incidents |> 
+  filter(political_direction != "none") |> 
+  filter(str_detect(incidents$topics, "Israeli-Palestinian Conflict") == TRUE) |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_both = count)
+
+# count from-the-left incidents per year involving the Israeli-Palestinian conflict
+n_incidents_left_ip <- incidents |> 
+  filter(str_detect(incidents$topics, "Israeli-Palestinian Conflict") == TRUE) |> 
+  filter(political_direction == "left") |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_left = count)
+
+# count from-the-right incidents per year involving the Israeli-Palestinian conflict
+n_incidents_right_ip <- incidents |> 
+  filter(str_detect(incidents$topics, "Israeli-Palestinian Conflict") == TRUE) |> 
+  filter(political_direction == "right") |> 
+  group_by(year) |> 
+  summarize(count = n()) |> 
+  rename(n_incidents_right = count)
+
+# combine
+incidents_by_year_ip <- n_incidents_both_ip |> 
+  left_join(n_incidents_left_ip, by = "year") |> 
+  left_join(n_incidents_right_ip, by = "year") |> 
+  replace_na(list(n_incidents_left = 0, 
+                  n_incidents_right = 0))
+
+# clean up environment
+remove(n_incidents_both_ip, n_incidents_left_ip, n_incidents_right_ip)
+
+# # save
+# write_csv(incidents_by_year_ip, "incidents_by_year_ip.csv")
+
+```
+
+```{r data-cleaning-university_counts}
+#| include: false
+
+# count incidents at each university in the data by each political direction
+university_counts_left <- incidents |> 
+  filter(political_direction == "left") |> 
+  count(school) |> 
+  add_column(political_direction = "left")
+university_counts_right <- incidents |> 
+  filter(political_direction == "right") |> 
+  count(school) |> 
+  add_column(political_direction = "right")
+university_counts_both <- incidents |> 
+  count(school)
+
+```
+
+```{r descriptives}
+#| include: false
+
+# calculcate descriptives
+descriptives <- tibble(
+  political_direction = c("both", "left", "right"), 
+  incidents = c(sum(incidents_by_year$n_incidents_both), 
+                  sum(incidents_by_year$n_incidents_left), 
+                  sum(incidents_by_year$n_incidents_right)), 
+  mean_incidents_per_year = c(round(mean(incidents_by_year$n_incidents_both), 1), 
+                              round(mean(incidents_by_year$n_incidents_left), 1), 
+                              round(mean(incidents_by_year$n_incidents_right), 1)), 
+  sd_incidents_per_year = c(round(sd(incidents_by_year$n_incidents_both), 1), 
+                            round(sd(incidents_by_year$n_incidents_left), 1), 
+                            round(sd(incidents_by_year$n_incidents_right), 1)), 
+  percent_total_incidents = c(round((1258/1258 * 100), 1), 
+                              round((605/1258 * 100), 1), 
+                              round((653/1258 * 100), 1)))
+
+```
+
+To begin, let's look at a summary of the bipartisan nature of the data.
+
++---------------------+-------------------------------+--------------------------------------+--------------------------------------+
+| Political Direction | Number of Targeting Incidents | Percent of Total Targeting Incidents | Average Targeting Instances Per Year |
++:===================:+:=============================:+:====================================:+:====================================:+
+| from the left       | 605                           | 48.1%                                | 23                                   |
+|                     |                               |                                      |                                      |
+| from the right      | 653                           | 51.9%                                | 25                                   |
++---------------------+-------------------------------+--------------------------------------+--------------------------------------+
+
+The entire Scholars Under Fire database records around 600 targeting instances from each the left and the right, suggesting that overall, neither political ideology tends to target the other more often. The data could, however, be biased in one direction or the other, which could influence how incidents make their way into the data. For example, are people be more likely to record incidents from certain political directions at certain times due to current events? Additionally, differences over time could certainly exist regardless of what the numbers say overall.
+
+To investigate this, let's look at targeting incidents over time, split by political direction. I've included both a regular line graph and a smoothed line graph, to show both specific values and the more general "smoothed" patterns of incidents over time.
+
+::: panel-tabset
+## Line Graph
+
+```{r plot-incidents_by_year}
+#| include: false
+
+#| fig-alt: >
+#|   A line graph of the number of targeting incidents per year between 2000 and 2025, by political direction. Targeting incidents from both the left and the right gradually increase over time, with the first major increase occurring around 2016 and a much larger increase occurring around 2020. Additionally, divergence in frequency of incidents between left and right begins to occur around 2023.
+
+# create plot
+plot_incidents_by_year <- incidents_by_year |> 
+  pivot_longer(n_incidents_both:n_incidents_right) |> 
+  ggplot(aes(x = year, y = value, color = name)) + 
+  geom_line(linewidth = 0.75) + 
+  scale_color_manual(values = c("black", "#0A5CA4", "#CA2121"), 
+                     labels = c("both left and right", "left", "right")) + 
+  labs(x = "Year", 
+       y = "Number of Targeting Incidents", 
+       title = "Targeting incidents per year, by political direction.", 
+       color = "Political Direction:")
+
+```
+
+```{r view-plot-incidents_by_year}
+#| echo: false
+
+# view plot
+plot_incidents_by_year
+
+```
+
+## Smoothed Line Graph
+
+```{r plot-incidents_by_year_smooth}
+#| include: false
+
+#| fig-alt: >
+#|   A smoothed line graph of the number of targeting incidents per year between 2000 and 2025, by political direction. Targeting incidents from both the left and the right gradually increase over time, with the first major increase occurring around 2016 and a much larger increase occurring around 2020. Additionally, divergence in frequency of incidents between left and right begins to occur around 2023.
+
+# create plot
+plot_incidents_by_year_smooth <- incidents_by_year |> 
+  pivot_longer(n_incidents_both:n_incidents_right) |> 
+  ggplot(aes(x = year, y = value, color = name)) + 
+  geom_smooth(linewidth = 0.75) + 
+  scale_color_manual(values = c("black", "#0A5CA4", "#CA2121"), 
+                     labels = c("both left and right", "left", "right")) + 
+  labs(x = "Year", 
+       y = "Number of Targeting Incidents", 
+       title = "Targeting incidents per year, by political direction.", 
+       color = "Political Direction:")
+
+```
+
+```{r view-plot-incidents_by_year_smooth}
+#| echo: false
+#| message: false
+
+# view plot
+plot_incidents_by_year_smooth
+
+```
+:::
+
+These graphs point out two things. First, targeting incidents occur more as time goes on. Second, the frequency of incidents from the left and right follow the same general pattern until 2023 and then split off from each other at that point, with incidents from the left dropping off dramatically and incidents from the right rising. It'll be interesting to revisit this data as time goes on to see what happens as the current political climate in the United States evolves, especially given the current presidential administration's focus on intervening in academic institutions and research.
+
+Before 2023, the general pattern of targeting incidents between the left and right is very similar, with two distinct "jumps" in incidents made by each left and right that happened at around the same times: one that occurred around 2016 and one that occurred around 2021. 2016 saw 47 targeting incidents from both left and right in total, while 2021 saw a much higher 200 incidents. These two jumps could potentially be explained by the events going on at the time – perhaps targeting incidents increased in frequency 2016 because of the palpable shift in the tone (and emotional tension) of American politics and discourse with the initial election of Donald Trump, and perhaps the next increase could be attributed to the heightened ideological division we experienced as a result of the COVID-19 pandemic and its effects on our social world.
+
+Around 2023, however, this pattern begins to change. Incidents from the right begin to rise, while incidents from the left begin to drop off quite a bit. Again, a changing political climate or certain current events could explain this difference. One major event that occurred in 2023 that could perhaps partly explain this difference was the October 2023 attacks on Israel by Hamas and the divisive ideological battle that ensued surrounding this issue, especially on college campuses.
+
+To investigate this idea, let's take a look at line graphs of incidents over time and by direction that *only* involve the Israeli-Palestinian conflict.
+
+::: panel-tabset
+## **Line Graph**
+
+```{r plot-incidents_by_year_ip}
+#| include: false
+
+#| fig-alt: >
+#|   A line graph of the number of targeting incidents involving the Israeli-Palestinian conflict per year between 2000 and 2025, by political direction. Starting around 2015, the frequency of these incidents between left and right begin to diverge, and there is a large jump in these incidents from the right around 2023.
+
+# create plot
+plot_incidents_by_year_ip <- incidents_by_year_ip |> 
+  select(-c(n_incidents_both)) |> 
+  pivot_longer(n_incidents_left:n_incidents_right) |> 
+  ggplot(aes(x = year, y = value, color = name)) + 
+  geom_line(linewidth = 0.75) + 
+  scale_color_manual(values = c("#0A5CA4", "#CA2121"), 
+                     labels = c("left", "right")) + 
+  labs(x = "Year", 
+       y = "Number of Targeting Incidents", 
+       title = "Targeting incidents involving the Israeli-Palestinian conflict per year, \nby political direction.", 
+       color = "Political Direction:")
+
+```
+
+```{r view-plot-incidents_by_year_ip}
+#| echo: false
+
+# view plot
+plot_incidents_by_year_ip
+
+```
+
+## Smoothed Line Graph
+
+```{r plot-incidents_by_year_smooth_ip}
+#| include: false
+
+#| fig-alt: >
+#|   A smoothed line graph of the number of targeting incidents involving the Israeli-Palestinian conflict per year between 2000 and 2025, by political direction. Starting around 2015, the frequency of these incidents between left and right begin to diverge, and there is a large jump in these incidents from the right around 2023.
+
+# create plot
+plot_incidents_by_year_smooth_ip <- incidents_by_year_ip |> 
+  select(-c(n_incidents_both)) |> 
+  pivot_longer(n_incidents_left:n_incidents_right) |> 
+  ggplot(aes(x = year, y = value, color = name)) + 
+  geom_smooth(linewidth = 0.75) + 
+  scale_color_manual(values = c("#0A5CA4", "#CA2121"), 
+                     labels = c("left", "right")) + 
+  labs(x = "Year", 
+       y = "Number of Targeting Incidents", 
+       title = "Targeting incidents involving the Israeli-Palestinian conflict per year, \nby political direction.", 
+       color = "Political Direction:")
+
+```
+
+```{r view-plot-incidents_by_year_smooth_ip}
+#| echo: false
+#| message: false
+
+# view plot
+plot_incidents_by_year_smooth_ip
+
+```
+:::
+
+These two graphs indicate that, while there has been a noticeable difference in the frequency at which the left and right oppose scholars based on their opinions on the Israeli-Palestinian conflict since around 2015, a large jump in these incidents from the right does in fact occur in 2023. In fact, incidents involving the Israeli-Palestinian conflict make up around 60% of incidents from the right in 2023 and around 75% of incidents from the right in 2024, which are both sizeable proportions of the total incidents from the right in each year.
+
+------------------------------------------------------------------------
+
+Let's now look at partisan differences on topics involved in incidents in general. This next graph compares how many incidents involving each topic were brought forth from the left or right, providing an overview of which topics were most commonly involved in incidents and how political directions compared on each topic.
+
+```{r plot-topic_counts}
+#| include: false
+
+#| fig-alt: >
+#|   A bar graph of the number of targeting incidents by topic involved in the incident and by political direction. The three topics with the highest number of targeting incidents from the left are race, gender, and institutional policy, while the three topics with the highest number of targeting incidents from the right are race, political views, and the Israeli-Palestinian conflict.
+
+# create plot
+plot_topic_counts <- topic_counts |> 
+  select(-c(n_both)) |> 
+  pivot_longer(n_left:n_right) |> 
+  rename(political_direction = name) |> 
+  ggplot(aes(x = topic, y = value, fill = political_direction)) + 
+  geom_col(position = "dodge") + 
+  scale_x_discrete(labels = c("Abortion", "Civil Liberties", "Class or Policy Issues", "COVID", 
+                              "Elections", "Environment", "Foreign Affairs", "Gender", "Health", 
+                              "Immigration", "Institutional Policy", "Israeli-Palestinian Conflict", 
+                              "Judiciary System", "Police", "Political Views", "Race", "Religion", 
+                              "Sexuality", "Terrorism")) + 
+  scale_fill_manual(name = "Political Direction:", 
+                    labels = c("left", "right"), 
+                    values = c("#0A5CA4", "#CA2121")) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  labs(x = "Topic", 
+       y = "Nummber of Targeting Incidents", 
+       title = "Targeting incidents by topic involved in the incident and by political direction.", 
+       subtitle = "* note: some targeting incidents involved multiple topics.")
+
+```
+
+```{r view-plot-topic_counts}
+#| echo: false
+
+# view plot
+plot_topic_counts
+
+```
+
+The standout topics that attracted the most attention in targeting incidents seem to be gender, institutional policy, the Israeli-Palestinian conflict, political views, and race. With respect to ideological differences, the three topics involved in the most targeting incidents from the left are race, gender, and institutional policy, while the three topics involved in the most targeting incidents from the right are race, political views, and the Israeli-Palestinian conflict. Race is overwhelmingly the most commonly-cited topic in targeting incidents, with almost 500 occurrences, and is trailed by institutional policy and gender, which were both involved in approximately 250 incidents. These patterns reflect the importance (or lack thereof) of different topics in academic freedom controversies.
+
+Next, let's look at the *universities* with the most incidents. These three graphs show the top five universities involved in the most targeting incidents, split by political direction.
+
+::: panel-tabset
+## Both
+
+```{r plot-university_counts_both}
+#| include: false
+
+#| fig-alt: >
+#|   A bar graph of the top five universities with the highest number of targeting incidents for both left and right targeting incidents; in descending order, they are the United States Naval Academy, Harvard University, University of Pennsylvania, Columbia University, and Georgetown University.
+
+# create plot
+plot_university_counts_both <- university_counts_both |> 
+  arrange(desc(n)) |> 
+  slice_head(n = 5) |> 
+  ggplot(aes(x = fct_infreq(school, n), y = n)) + 
+  geom_col(fill = "black") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ylim(0, 70) + 
+  labs(x = "University", 
+       y = "Nummber of Targeting Incidents", 
+       title = "Top five universities with the largest number of targeting incidents from both left \nand right.")
+
+```
+
+```{r view-plot_university_counts_both}
+#| echo: false
+
+# view plot
+plot_university_counts_both
+
+```
+
+## Left
+
+```{r plot-university_counts_left}
+#| include: false
+
+#| fig-alt: >
+#|   A bar graph of the top five universities with the highest number of targeting incidents from the left; in descending order, they are Harvard University, University of California Los Angeles, University of Pennsylvania, Stanford University, and Columbia University.
+
+# create plot
+plot_university_counts_left <- university_counts_left |> 
+  arrange(desc(n)) |> 
+  slice_head(n = 5) |> 
+  ggplot(aes(x = fct_infreq(school, n), y = n)) + 
+  geom_col(fill = "#0A5CA4") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ylim(0, 70) + 
+  labs(x = "University", 
+       y = "Nummber of Targeting Incidents", 
+       title = "Top five universities with the largest number of targeting incidents from the left.")
+
+```
+
+```{r view-plot_university_counts_left}
+#| echo: false
+
+# view plot
+plot_university_counts_left
+
+```
+
+## Right
+
+```{r plot-university_counts_right}
+#| include: false
+
+#| fig-alt: >
+#|   A bar graph of the top five universities with the highest number of targeting incidents from the right; in descending order, they are the United States Naval Academy, Georgetown University, Columbia University, University of Pennsylvania, and Harvard University.
+
+# create plot
+plot_university_counts_right <- university_counts_right |> 
+  arrange(desc(n)) |> 
+  slice_head(n = 5) |> 
+  ggplot(aes(x = fct_infreq(school, n), y = n)) + 
+  geom_col(fill = "#CA2121") + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  ylim(0, 70) + 
+  labs(x = "University", 
+       y = "Nummber of Targeting Incidents", 
+       title = "Top five universities with the largest number of targeting incidents from the right")      
+
+```
+
+```{r view-plot_university_counts_right}
+#| echo: false
+
+# view plot
+plot_university_counts_right
+
+```
+:::
+
+Based on descriptions of incidents from the data, most of the incidents that took place at the United States Naval Academy are the result of a recent executive order interfering with DEI initiatives in universities signed by President Trump, which resulted in dozens of books being banned from (and then brought back to) the school's library. Beyond that, incidents tend to occur at Ivy League universities, perhaps because these institutions are perceived to be influential and therefore the goings-ons at their campuses are considered to be noteworthy. It's also possible that these universities garner more attention from places like the news media or discussion on social media, and so incidents that take place in them are more likely to be recorded in the first place.
+
+------------------------------------------------------------------------
+
+A map of the United States that animates incidents over time and by location provides a nice overview of what we've been looking at. (Note that there were no incidents recorded in Alaska or Hawaii, due to issues with location labeling, which is why those states were excluded from the map.)
+
+```{r plot-incidents_map}
+#| include: false
+
+# plot incidents over time on a map of the United States
+plot_incidents_map <- usa_shapefile |> 
+  ggplot() + 
+  geom_sf(data = usa_shapefile) + 
+  geom_sf(data = universities_shapefile, aes(color = Direction)) + 
+  scale_color_manual(values = c("#0A5CA4", "#CA2121")) + 
+  coord_sf(xlim = c(-130, -60), ylim = c(22, 52)) + 
+  theme(axis.text.x = element_blank(), axis.text.y = element_blank(), axis.ticks = element_blank()) + 
+  labs(subtitle = "Targeting incidents by direction over time, from 2000-2025.")
+
+```
+
+```{r view-plot-incidents_map_gif}
+#| echo: false
+#| message: false
+
+# animate and view the map
+gif_incidents_map <- plot_incidents_map + 
+  transition_manual(year) + 
+  ggtitle('{current_frame}')
+animate(gif_incidents_map, renderer = gifski_renderer())
+
+```
+
+This animated map agrees with what we saw earlier in the line graphs of incidents over time – that targeting incidents in general become more common as time goes on – and provides additional information about the geographic characteristics of targeting incidents, namely that incidents tend to be clustered around major population hubs of the United States.
+
+------------------------------------------------------------------------
+
+What can we take away from this? It's clear that the rate at which targeting incidents occur has been increasing in recent years, which aligns with anecdotal experiences of political tensions and hostility along with the research-driven measures of these phenomena. In addition, we've also observed a partisan difference in the frequency of targeting incidents that started around 2016 but really started to ramp up around 2020, and a major partisan split in incident frequency that started in 2023 when incidents from the left began to decline and incidents from the right began to rise.
+
+This last point is perhaps the most intriguing, as it potentially signals the start of a period of time where the right feels more comfortable (and the left feels less comfortable) with targeting scholars for differences of opinion. This shift would indicate a departure from the general social climate of the last 10 years or so, in which "cancel culture" was strongly associated with the left and its existence was lamented by the right. It'll be interesting to watch how this phenomenon in particular continues to evolve.
+
+It's certainly not far off to conclude that academic freedom is increasingly at risk in the United States. In the world of academia, where tolerance of opposing ideas is especially important because of the necessity of challenge and debate to the development of knowledge, intolerance of and hostility towards opposing perspectives is growing. This is a concerning phenomenon, one that needs to be addressed if the ideal of academia as an institution of neutrality and integrity is to be – depending on how you see it – maintained, or pursued in the first place.
+
+------------------------------------------------------------------------
+
+## References
+
+1.  Americans’ dismal views of the nation’s politics. (2023, September 19). *Pew Research Center*. <https://www.pewresearch.org/politics/2023/09/19/americans-dismal-views-of-the-nations-politics/>
+
+2.  As partisan hostility grows, signs of frustration with the two-party system. (2022, August 9). *Pew Research Center*. <https://www.pewresearch.org/politics/2022/08/09/as-partisan-hostility-grows-signs-of-frustration-with-the-two-party-system/>
+
+3.  *FAQs on academic freedom.* (n.d.). Retrieved June 30, 2025, from <https://www.aaup.org/issues-higher-education/academic-freedom/faqs-academic-freedom>
+
+4.  *political spectrum*. (n.d.). Retrieved June 30, 2025, from <https://www.britannica.com/topic/political-spectrum>
+
+5.  *Scholars Under Fire Database*. (n.d.). Retrieved June 28, 2025, from <https://www.thefire.org/research-learn/scholars-under-fire>
